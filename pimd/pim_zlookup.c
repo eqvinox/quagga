@@ -136,6 +136,7 @@ static int zclient_read_nexthop(struct zclient *zlookup,
 				const int tab_size,
 				struct in_addr addr)
 {
+#error this code is out of date, the corresponding zserv command has been removed and must be rewritten for SAFI support
   int num_ifindex = 0;
   struct stream *s;
   const uint16_t MIN_LEN = 14; /* getc=1 getc=1 getw=2 getipv4=4 getc=1 getl=4 getc=1 */
