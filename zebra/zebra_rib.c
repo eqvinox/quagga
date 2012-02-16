@@ -375,8 +375,7 @@ nexthop_active_ipv4 (struct rib *rib, struct nexthop *nexthop, int set,
 	      
 	      return 1;
 	    }
-	  else if (CHECK_FLAG (rib->flags, ZEBRA_FLAG_INTERNAL) ||
-		   match->type == ZEBRA_ROUTE_KERNEL)
+	  else if (CHECK_FLAG (rib->flags, ZEBRA_FLAG_INTERNAL))
 	    {
 	      for (newhop = match->nexthop; newhop; newhop = newhop->next)
 		if (CHECK_FLAG (newhop->flags, NEXTHOP_FLAG_FIB)
