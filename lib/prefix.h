@@ -112,6 +112,7 @@ struct prefix_rd
 #define IPV4_NET0(a)    ((((u_int32_t) (a)) & 0xff000000) == 0x00000000)
 #define IPV4_NET127(a)  ((((u_int32_t) (a)) & 0xff000000) == 0x7f000000)
 #define IPV4_LINKLOCAL(a) ((((u_int32_t) (a)) & 0xffff0000) == 0xa9fe0000)
+#define IPV4_CLASS_DE(a) ((u_int32_t) (a) >= 0xe0000000)
 
 /* Max bit/byte length of IPv6 address. */
 #define IPV6_MAX_BYTELEN    16
@@ -156,12 +157,14 @@ extern int prefix2str (const struct prefix *, char *, int);
 extern int prefix_match (const struct prefix *, const struct prefix *);
 extern int prefix_same (const struct prefix *, const struct prefix *);
 extern int prefix_cmp (const struct prefix *, const struct prefix *);
+extern int prefix_common_bits (const struct prefix *, const struct prefix *);
 extern void prefix_copy (struct prefix *dest, const struct prefix *src);
 extern void apply_mask (struct prefix *);
 
 extern struct prefix *sockunion2prefix (const union sockunion *dest,
                                         const union sockunion *mask);
 extern struct prefix *sockunion2hostprefix (const union sockunion *);
+extern void prefix2sockunion (const struct prefix *, union sockunion *);
 
 extern struct prefix_ipv4 *prefix_ipv4_new (void);
 extern void prefix_ipv4_free (struct prefix_ipv4 *);
