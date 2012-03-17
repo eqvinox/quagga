@@ -763,8 +763,13 @@ zread_ipv4_add (struct zserv *client, u_short length)
   rib->type = stream_getc (s);
   rib->flags = stream_getc (s);
   message = stream_getc (s); 
-  safi = stream_getw (s);
   rib->uptime = time (NULL);
+
+  /* SAFI */
+  if (CHECK_FLAG (message, ZAPI_MESSAGE_SAFI))
+    safi = stream_getw (s);
+  else
+    safi = SAFI_UNICAST;
 
   /* IPv4 prefix. */
   memset (&p, 0, sizeof (struct prefix_ipv4));
@@ -841,7 +846,12 @@ zread_ipv4_delete (struct zserv *client, u_short length)
   api.type = stream_getc (s);
   api.flags = stream_getc (s);
   api.message = stream_getc (s);
-  api.safi = stream_getw (s);
+
+  /* SAFI */
+  if (CHECK_FLAG (api.message, ZAPI_MESSAGE_SAFI))
+    api.safi = stream_getw (s);
+  else
+    api.safi = SAFI_UNICAST;
 
   /* IPv4 prefix. */
   memset (&p, 0, sizeof (struct prefix_ipv4));
@@ -937,7 +947,12 @@ zread_ipv6_add (struct zserv *client, u_short length)
   api.type = stream_getc (s);
   api.flags = stream_getc (s);
   api.message = stream_getc (s);
-  api.safi = stream_getw (s);
+
+  /* SAFI */
+  if (CHECK_FLAG (api.message, ZAPI_MESSAGE_SAFI))
+    api.safi = stream_getw (s);
+  else
+    api.safi = SAFI_UNICAST;
 
   /* IPv4 prefix. */
   memset (&p, 0, sizeof (struct prefix_ipv6));
@@ -1005,7 +1020,12 @@ zread_ipv6_delete (struct zserv *client, u_short length)
   api.type = stream_getc (s);
   api.flags = stream_getc (s);
   api.message = stream_getc (s);
-  api.safi = stream_getw (s);
+
+  /* SAFI */
+  if (CHECK_FLAG (api.message, ZAPI_MESSAGE_SAFI))
+    api.safi = stream_getw (s);
+  else
+    api.safi = SAFI_UNICAST;
 
   /* IPv4 prefix. */
   memset (&p, 0, sizeof (struct prefix_ipv6));
