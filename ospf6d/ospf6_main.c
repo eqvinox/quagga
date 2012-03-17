@@ -180,6 +180,7 @@ static void
 sigterm (void)
 {
   zlog_notice ("Terminating on signal SIGTERM");
+  ospf6_clean();
   ospf6_exit (0);
 }
 
@@ -289,6 +290,13 @@ main (int argc, char *argv[], char *envp[])
           usage (progname, 1);
           break;
         }
+    }
+
+  if (geteuid () != 0)
+    {
+      errno = EPERM;
+      perror (progname);
+      exit (1);
     }
 
   /* thread master */

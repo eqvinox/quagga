@@ -1069,11 +1069,9 @@ bgp_announce_check_rsclient (struct bgp_info *ri, struct peer *rsclient,
   struct bgp_filter *filter;
   struct bgp_info info;
   struct peer *from;
-  struct bgp *bgp;
 
   from = ri->peer;
   filter = &rsclient->filter[afi][safi];
-  bgp = rsclient->bgp;
 
   if (DISABLE_BGP_ANNOUNCE)
     return 0;
@@ -1493,7 +1491,7 @@ bgp_process_main (struct work_queue *wq, void *data)
       if (! CHECK_FLAG (old_select->flags, BGP_INFO_ATTR_CHANGED))
         {
           if (CHECK_FLAG (old_select->flags, BGP_INFO_IGP_CHANGED))
-            bgp_zebra_announce (p, old_select, bgp);
+            bgp_zebra_announce (p, old_select, bgp, safi);
           
           UNSET_FLAG (rn->flags, BGP_NODE_PROCESS_SCHEDULED);
           return WQ_SUCCESS;
@@ -1516,20 +1514,20 @@ bgp_process_main (struct work_queue *wq, void *data)
     }
 
   /* FIB update. */
-  if (safi == SAFI_UNICAST && ! bgp->name &&
-      ! bgp_option_check (BGP_OPT_NO_FIB))
+  if ((safi == SAFI_UNICAST || safi == SAFI_MULTICAST) && (! bgp->name &&
+      ! bgp_option_check (BGP_OPT_NO_FIB)))
     {
       if (new_select 
 	  && new_select->type == ZEBRA_ROUTE_BGP 
 	  && new_select->sub_type == BGP_ROUTE_NORMAL)
-	bgp_zebra_announce (p, new_select, bgp);
+	bgp_zebra_announce (p, new_select, bgp, safi);
       else
 	{
 	  /* Withdraw the route from the kernel. */
 	  if (old_select 
 	      && old_select->type == ZEBRA_ROUTE_BGP
 	      && old_select->sub_type == BGP_ROUTE_NORMAL)
-	    bgp_zebra_withdraw (p, old_select);
+	    bgp_zebra_withdraw (p, old_select, safi);
 	}
     }
     
@@ -1812,11 +1810,11 @@ bgp_update_rsclient (struct peer *rsclient, afi_t afi, safi_t safi,
   bgp_attr_unintern (&attr_new2);
 
   /* IPv4 unicast next hop check.  */
-  if (afi == AFI_IP && safi == SAFI_UNICAST)
+  if ((afi == AFI_IP) && ((safi == SAFI_UNICAST) || safi == SAFI_MULTICAST))
     {
-     /* Next hop must not be 0.0.0.0 nor Class E address. */
+     /* Next hop must not be 0.0.0.0 nor Class D/E address. */
       if (new_attr.nexthop.s_addr == 0
-         || ntohl (new_attr.nexthop.s_addr) >= 0xe0000000)
+         || IPV4_CLASS_DE (ntohl (new_attr.nexthop.s_addr)))
        {
          bgp_attr_unintern (&attr_new);
 
@@ -2063,18 +2061,18 @@ bgp_update_main (struct peer *peer, struct prefix *p, struct attr *attr,
       /* If the peer is EBGP and nexthop is not on connected route,
 	 discard it.  */
       if (peer_sort (peer) == BGP_PEER_EBGP && peer->ttl == 1
-	  && ! bgp_nexthop_check_ebgp (afi, &new_attr)
+	  && ! bgp_nexthop_onlink (afi, &new_attr)
 	  && ! CHECK_FLAG (peer->flags, PEER_FLAG_DISABLE_CONNECTED_CHECK))
 	{
 	  reason = "non-connected next-hop;";
 	  goto filtered;
 	}
 
-      /* Next hop must not be 0.0.0.0 nor Class E address.  Next hop
+      /* Next hop must not be 0.0.0.0 nor Class D/E address. Next hop
 	 must not be my own address.  */
       if (bgp_nexthop_self (afi, &new_attr)
 	  || new_attr.nexthop.s_addr == 0
-	  || ntohl (new_attr.nexthop.s_addr) >= 0xe0000000)
+	  || IPV4_CLASS_DE (ntohl (new_attr.nexthop.s_addr)))
 	{
 	  reason = "martian next-hop;";
 	  goto filtered;
@@ -2936,7 +2934,7 @@ bgp_cleanup_routes (void)
 	  if (CHECK_FLAG (ri->flags, BGP_INFO_SELECTED)
 	      && ri->type == ZEBRA_ROUTE_BGP 
 	      && ri->sub_type == BGP_ROUTE_NORMAL)
-	    bgp_zebra_withdraw (&rn->p, ri);
+	    bgp_zebra_withdraw (&rn->p, ri,SAFI_UNICAST);
 
       table = bgp->rib[AFI_IP6][SAFI_UNICAST];
 
@@ -2945,7 +2943,7 @@ bgp_cleanup_routes (void)
 	  if (CHECK_FLAG (ri->flags, BGP_INFO_SELECTED)
 	      && ri->type == ZEBRA_ROUTE_BGP 
 	      && ri->sub_type == BGP_ROUTE_NORMAL)
-	    bgp_zebra_withdraw (&rn->p, ri);
+	    bgp_zebra_withdraw (&rn->p, ri,SAFI_UNICAST);
     }
 }
 
@@ -4169,7 +4167,7 @@ DEFUN (ipv6_bgp_network,
        "Specify a network to announce via BGP\n"
        "IPv6 prefix <network>/<length>\n")
 {
-  return bgp_static_set (vty, vty->index, argv[0], AFI_IP6, SAFI_UNICAST,
+  return bgp_static_set (vty, vty->index, argv[0], AFI_IP6, bgp_node_safi(vty),
                          NULL, 0);
 }
 
@@ -4192,7 +4190,7 @@ DEFUN (no_ipv6_bgp_network,
        "Specify a network to announce via BGP\n"
        "IPv6 prefix <network>/<length>\n")
 {
-  return bgp_static_unset (vty, vty->index, argv[0], AFI_IP6, SAFI_UNICAST);
+  return bgp_static_unset (vty, vty->index, argv[0], AFI_IP6, bgp_node_safi(vty));
 }
 
 ALIAS (no_ipv6_bgp_network,
@@ -12581,6 +12579,9 @@ bgp_route_init (void)
   install_element (BGP_IPV6_NODE, &ipv6_aggregate_address_summary_only_cmd);
   install_element (BGP_IPV6_NODE, &no_ipv6_aggregate_address_cmd);
   install_element (BGP_IPV6_NODE, &no_ipv6_aggregate_address_summary_only_cmd);
+
+  install_element (BGP_IPV6M_NODE, &ipv6_bgp_network_cmd);
+  install_element (BGP_IPV6M_NODE, &no_ipv6_bgp_network_cmd);
 
   /* Old config IPv6 BGP commands.  */
   install_element (BGP_NODE, &old_ipv6_bgp_network_cmd);

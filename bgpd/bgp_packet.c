@@ -1381,7 +1381,7 @@ bgp_open_receive (struct peer *peer, bgp_size_t size)
 
   /* remote router-id check. */
   if (remote_id.s_addr == 0
-      || ntohl (remote_id.s_addr) >= 0xe0000000
+      || IPV4_CLASS_DE (ntohl (remote_id.s_addr))
       || ntohl (peer->local_id.s_addr) == ntohl (remote_id.s_addr))
     {
       if (BGP_DEBUG (normal, NORMAL))
@@ -1459,9 +1459,13 @@ bgp_open_receive (struct peer *peer, bgp_size_t size)
   /* Open option part parse. */
   if (optlen != 0) 
     {
-      ret = bgp_open_option_parse (peer, optlen, &capability);
-      if (ret < 0)
-	return ret;
+      if ((ret = bgp_open_option_parse (peer, optlen, &capability)) < 0)
+        {
+          bgp_notify_send (peer,
+                 BGP_NOTIFY_OPEN_ERR,
+                 BGP_NOTIFY_OPEN_UNACEP_HOLDTIME);
+	  return ret;
+        }
     }
   else
     {
@@ -2054,7 +2058,7 @@ bgp_route_refresh_receive (struct peer *peer, bgp_size_t size)
 		      break;
 		    }
 		  ok = ((p_end - p_pnt) >= sizeof(u_int32_t)) ;
-		  if (!ok)
+		  if (ok)
 		    {
 		      memcpy (&seq, p_pnt, sizeof (u_int32_t));
                       p_pnt += sizeof (u_int32_t);

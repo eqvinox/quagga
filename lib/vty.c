@@ -1687,7 +1687,6 @@ static int
 vty_accept (struct thread *thread)
 {
   int vty_sock;
-  struct vty *vty;
   union sockunion su;
   int ret;
   unsigned int on;
@@ -1772,7 +1771,7 @@ vty_accept (struct thread *thread)
   if (bufp)
     XFREE (MTYPE_TMP, bufp);
 
-  vty = vty_create (vty_sock, &su);
+  vty_create (vty_sock, &su);
 
   return 0;
 }
@@ -1818,6 +1817,7 @@ vty_serv_sock_addrinfo (const char *hostname, unsigned short port)
       if (sock < 0)
 	continue;
 
+      sockopt_v6only (ainfo->ai_family, sock);
       sockopt_reuseaddr (sock);
       sockopt_reuseport (sock);
 

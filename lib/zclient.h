@@ -108,6 +108,8 @@ struct zapi_ipv4
 
   u_char message;
 
+  safi_t safi;
+
   u_char nexthop_num;
   struct in_addr **nexthop;
 
@@ -164,6 +166,8 @@ struct zapi_ipv6
   u_char flags;
 
   u_char message;
+
+  safi_t safi;
 
   u_char nexthop_num;
   struct in6_addr **nexthop;

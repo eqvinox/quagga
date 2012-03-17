@@ -153,6 +153,7 @@ struct router_lsa_link
 };
 
 /* OSPF Router-LSAs structure. */
+#define OSPF_ROUTER_LSA_MIN_SIZE                  16U /* w/1 link descriptor */
 struct router_lsa
 {
   struct lsa_header header;
@@ -170,6 +171,7 @@ struct router_lsa
 };
 
 /* OSPF Network-LSAs structure. */
+#define OSPF_NETWORK_LSA_MIN_SIZE                  8U /* w/1 router-ID */
 struct network_lsa
 {
   struct lsa_header header;
@@ -178,6 +180,7 @@ struct network_lsa
 };
 
 /* OSPF Summary-LSAs structure. */
+#define OSPF_SUMMARY_LSA_MIN_SIZE                  8U /* w/1 TOS metric block */
 struct summary_lsa
 {
   struct lsa_header header;
@@ -187,6 +190,7 @@ struct summary_lsa
 };
 
 /* OSPF AS-external-LSAs structure. */
+#define OSPF_AS_EXTERNAL_LSA_MIN_SIZE             16U /* w/1 TOS forwarding block */
 struct as_external_lsa
 {
   struct lsa_header header;
@@ -275,6 +279,7 @@ extern struct in_addr ospf_get_ip_from_ifp (struct ospf_interface *);
 
 extern struct ospf_lsa *ospf_external_lsa_originate (struct ospf *, struct external_info *);
 extern int ospf_external_lsa_originate_timer (struct thread *);
+extern int ospf_default_originate_timer (struct thread *);
 extern struct ospf_lsa *ospf_lsa_lookup (struct ospf_area *, u_int32_t,
 				  struct in_addr, struct in_addr);
 extern struct ospf_lsa *ospf_lsa_lookup_by_id (struct ospf_area *,
