@@ -36,3 +36,18 @@ memtypes.h: $(srcdir)/memtypes.c $(srcdir)/memtypes.awk
 
 route_types.h: $(srcdir)/route_types.txt $(srcdir)/route_types.pl
 	@PERL@ $(srcdir)/route_types.pl < $(srcdir)/route_types.txt > $@
+
+if GIT_VERSION 
+
+.PHONY: do-gitversion
+.SILENT: do-gitversion
+GITH=gitversion.h
+do-gitversion:
+	@PERL@ $(srcdir)/gitversion.pl $(srcdir) > ${GITH}.tmp
+	{ test -f ${GITH} && diff -s -q ${GITH}.tmp ${GITH}; } || cp -v ${GITH}.tmp ${GITH}
+	rm -f ${GITH}.tmp
+
+gitversion.h: do-gitversion $(srcdir)/../.git
+	@/bin/true
+
+endif
