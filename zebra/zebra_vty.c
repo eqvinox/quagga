@@ -2020,6 +2020,18 @@ DEFUN (show_ipv6_mroute,
   return CMD_SUCCESS;
 }
 
+
+DEFUN (show_ip_interface_brief,
+       show_ip_interface_brief_cmd,
+       "show ip interface brief",
+       SHOW_STR
+       IP_STR
+       "Interface status and configuration"
+       "brief information\n")
+{
+  return zebra_display_interface_brief(vty);
+}
+
 /* Write IPv6 static route configuration. */
 static int
 static_config_ipv6 (struct vty *vty)
@@ -2072,6 +2084,19 @@ static_config_ipv6 (struct vty *vty)
       }
   return write;
 }
+
+
+DEFUN (show_ipv6_interface_brief,
+       show_ipv6_interface_brief_cmd,
+       "show ipv6 interface brief",
+       SHOW_STR
+       IPV6_STR
+       "Interface status and configuration"
+       "brief information\n")
+{
+  return zebra_display_interface_brief(vty);
+}
+
 #endif /* HAVE_IPV6 */
 
 /* Static ip route configuration write function. */
@@ -2162,6 +2187,8 @@ zebra_vty_init (void)
   install_element (ENABLE_NODE, &show_ip_route_supernets_cmd);
   install_element (ENABLE_NODE, &show_ip_route_summary_cmd);
 
+  install_element (VIEW_NODE, &show_ip_interface_brief_cmd);
+  install_element (ENABLE_NODE, &show_ip_interface_brief_cmd);
   install_element (VIEW_NODE, &show_ip_mroute_cmd);
   install_element (ENABLE_NODE, &show_ip_mroute_cmd);
 
@@ -2198,5 +2225,9 @@ zebra_vty_init (void)
 
   install_element (VIEW_NODE, &show_ipv6_mroute_cmd);
   install_element (ENABLE_NODE, &show_ipv6_mroute_cmd);
+
+  install_element (VIEW_NODE, &show_ipv6_interface_brief_cmd);
+  install_element (ENABLE_NODE, &show_ipv6_interface_brief_cmd);
+
 #endif /* HAVE_IPV6 */
 }

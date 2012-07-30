@@ -875,12 +875,67 @@ DEFUN_NOSH (zebra_interface,
   return ret;
 }
 
+DEFUN_NOSH (zebra_no_interface,
+	    zebra_no_interface_cmd,
+	    "no interface IFNAME",
+        NO_STR
+        "Delete a virtual interface's configuration\n"
+        "Interface's name\n")
+
+{
+  // deleting interface
+  struct interface *ifp;
+  int ret;
+
+  if ((ret = no_interface_cmd.func (self, vty, argc, argv)) != CMD_SUCCESS)
+    return ret;
+
+  ifp = vty->index;
+
+
+  if (!if_is_subif(ifp->name))
+  {
+	    vty_out (vty, "%% Cannot delete physical interfaces%s",
+		      VTY_NEWLINE);
+	    return CMD_WARNING;
+
+  }
+
+
+  if (if_is_operative(ifp))
+    {
+      vty_out (vty, "%% Only shutdown interfaces can be deleted%s",
+	      VTY_NEWLINE);
+      return CMD_WARNING;
+    }
+
+  if(if_delete_if(ifp))
+  {
+    vty_out (vty, "%% ERROR deleting interface from kernel%s",
+	      VTY_NEWLINE);
+    return CMD_WARNING;
+  }
+
+  if_delete(ifp);
+
+  return CMD_SUCCESS;
+}
+
 struct cmd_node interface_node =
 {
   INTERFACE_NODE,
   "%s(config-if)# ",
   1
 };
+
+struct cmd_node sub_interface_node =
+{
+  SUB_INTERFACE_NODE,
+  "%s(config-subif)# ",
+  1
+};
+
+
 
 /* Show all or specified interface to vty. */
 DEFUN (show_interface, show_interface_cmd,
@@ -921,6 +976,24 @@ DEFUN (show_interface, show_interface_cmd,
 
   return CMD_SUCCESS;
 }
+
+ALIAS (show_interface,
+       show_ip_interface_cmd,
+       "show ip interface [IFNAME]",
+       SHOW_STR
+       IP_STR
+       "Interface status and configuration"
+       "interface name\n")
+
+#ifdef HAVE_IPV6
+ALIAS (show_interface,
+       show_ipv6_interface_cmd,
+       "show ipv6 interface [IFNAME]",
+       SHOW_STR
+       IPV6_STR
+       "Interface status and configuration"
+       "interface name\n")
+#endif /* HAVE_IPV6 */
 
 DEFUN (show_interface_desc,
        show_interface_desc_cmd,
@@ -966,6 +1039,142 @@ DEFUN (show_interface_desc,
     }
   return CMD_SUCCESS;
 }
+
+
+int
+zebra_display_interface_brief(struct vty *vty)
+{
+  struct listnode *node, *node1;
+  struct interface *ifp;
+  struct route_node *rn;
+  struct zebra_if *zebra_if;
+
+  vty_out (vty, "Interface       Address           Status  Protocol  ");
+
+  vty_out (vty, "  Description%s", VTY_NEWLINE);
+  for (ALL_LIST_ELEMENTS_RO (iflist, node, ifp))
+    {
+      int len;
+
+      len = vty_out (vty, "%s", ifp->name);
+      vty_out (vty, "%*s", (16 - len), " ");
+
+    	  struct connected *connected;
+    	  struct prefix *p;
+    	  int test;
+    	  test =  0;
+    	  zebra_if = ifp->info;
+    	  for (rn = route_top (zebra_if->ipv4_subnets); rn; rn = route_next (rn))
+    	    {
+    	      if (! rn->info) {
+          	      vty_out (vty, "%18s"," ");
+          		continue;
+    	      }
+
+    	      for (ALL_LIST_ELEMENTS_RO ((struct list *)rn->info, node1, connected)) {
+    	      struct prefix *p;
+    	      char str[100];
+    	      char str2[10];
+    	      test = 1;
+
+    	      /* Print interface address. */
+    	      p = connected->address;
+//    	      vty_out (vty, "  %s ", prefix_family_str (p));
+//   	      prefix_vty_out (vty, p);
+    	      inet_ntop (p->family, &p->u.prefix, str, sizeof (str));
+    	      sprintf(str2, "/%d", p->prefixlen);
+    	      strcat(str,str2);
+//    	      vty_out (vty, "/%s", p->prefixlen);
+      	      vty_out (vty, "%-18s",str);
+    	      }
+    	    }
+    	  if (!test)
+      	      vty_out (vty, "%18s"," ");
+
+      if (if_is_up(ifp))
+	{
+	  vty_out (vty, "up      ");
+	  if (CHECK_FLAG(ifp->status, ZEBRA_INTERFACE_LINKDETECTION))
+	    {
+	      if (if_is_running(ifp))
+		vty_out (vty, "up        ");
+	      else
+		vty_out (vty, "down      ");
+	    }
+	  else
+	    {
+	      vty_out (vty, "unknown   ");
+	    }
+	}
+      else
+	{
+	  vty_out (vty, "down    down      ");
+	}
+
+
+      if (ifp->desc)
+	vty_out (vty, "%s", ifp->desc);
+      vty_out (vty, "%s", VTY_NEWLINE);
+    }
+  return CMD_SUCCESS;
+}
+
+
+DEFUN (show_interface_addr,
+       show_interface_addr_cmd,
+       "show interface address",
+       SHOW_STR
+       "Interface status and configuration\n"
+       "Interface description\n")
+{
+  return zebra_display_interface_brief(vty);
+}
+
+
+#ifdef HAVE_NETLINK
+
+DEFUN (interface_vlan,
+       interface_vlan_cmd,
+       "vlan NUMBER",
+       "Sub-Interface vlan\n"
+       "VLAN number for this sub-interface\n")
+{
+  struct interface *ifp;
+  int vlan;
+  int ret;
+
+
+  if (argc == 0)
+    return CMD_SUCCESS;
+
+  VTY_GET_INTEGER_RANGE ("VLAN", vlan, argv[0], 1, VLAN_ID_MAX);
+
+  ifp = vty->index;
+  ifp->vlan = vlan;
+  ret = if_set_vlan (ifp, vlan);
+  if (ret)
+	  return CMD_SUCCESS;
+  return CMD_WARNING;
+}
+
+DEFUN (no_interface_vlan,
+       no_interface_vlan_cmd,
+       "no vlan NUMBER",
+       NO_STR
+       "vlan NUMBER\n")
+{
+  struct interface *ifp;
+  int ret;
+  ifp = vty->index;
+  ifp->vlan = 0;
+  ret = if_set_vlan (ifp, 0);
+   if (ret)
+ 	  return CMD_SUCCESS;
+   return CMD_WARNING;
+
+  return CMD_SUCCESS;
+}
+#endif /* HAVE_NETLINK */
 
 DEFUN (multicast,
        multicast_cmd,
@@ -1109,6 +1318,30 @@ DEFUN (no_shutdown_if,
 
   return CMD_SUCCESS;
 }
+
+DEFUN (mtu_if,
+       mtu_if_cmd,
+       "mtu <1-10000000>",
+       "Set mtu parameter\n"
+       "mtu in bytes\n")
+{
+  struct interface *ifp;
+  unsigned int mtu;
+
+  ifp = (struct interface *) vty->index;
+  mtu = strtol(argv[0], NULL, 10);
+
+  /* bandwidth range is <1-10000000> */
+  if (mtu < 1 || mtu > 10000000)
+    {
+      vty_out (vty, "MTU is invalid%s", VTY_NEWLINE);
+      return CMD_WARNING;
+    }
+
+  if_set_mtu (ifp, mtu);
+}
+
+
 
 DEFUN (bandwidth_if,
        bandwidth_if_cmd,
@@ -1538,6 +1771,11 @@ DEFUN (no_ipv6_address,
 #endif /* HAVE_IPV6 */
 
 static int
+subif_config_write (struct vty *vty)
+{
+}
+
+static int
 if_config_write (struct vty *vty)
 {
   struct listnode *node;
@@ -1558,6 +1796,9 @@ if_config_write (struct vty *vty)
       if (ifp->desc)
 	vty_out (vty, " description %s%s", ifp->desc,
 		 VTY_NEWLINE);
+
+      	 if(ifp->vlan)
+      		vty_out(vty, " vlan %d%s", ifp->vlan, VTY_NEWLINE);
 
       /* Assign bandwidth here to avoid unnecessary interface flap
 	 while processing config script */
@@ -1624,8 +1865,9 @@ zebra_if_init (void)
   install_element (VIEW_NODE, &show_interface_cmd);
   install_element (ENABLE_NODE, &show_interface_cmd);
   install_element (ENABLE_NODE, &show_interface_desc_cmd);
+  install_element (ENABLE_NODE, &show_interface_addr_cmd);
   install_element (CONFIG_NODE, &zebra_interface_cmd);
-  install_element (CONFIG_NODE, &no_interface_cmd);
+  install_element (CONFIG_NODE, &zebra_no_interface_cmd);
   install_default (INTERFACE_NODE);
   install_element (INTERFACE_NODE, &interface_desc_cmd);
   install_element (INTERFACE_NODE, &no_interface_desc_cmd);
@@ -1640,6 +1882,7 @@ zebra_if_init (void)
   install_element (INTERFACE_NODE, &no_bandwidth_if_val_cmd);
   install_element (INTERFACE_NODE, &ip_address_cmd);
   install_element (INTERFACE_NODE, &no_ip_address_cmd);
+  install_element (INTERFACE_NODE, &mtu_if_cmd);
 #ifdef HAVE_IPV6
   install_element (INTERFACE_NODE, &ipv6_address_cmd);
   install_element (INTERFACE_NODE, &no_ipv6_address_cmd);
@@ -1648,4 +1891,34 @@ zebra_if_init (void)
   install_element (INTERFACE_NODE, &ip_address_label_cmd);
   install_element (INTERFACE_NODE, &no_ip_address_label_cmd);
 #endif /* HAVE_NETLINK */
+
+  /* same thing for sub interfaces */
+  install_node (&sub_interface_node, subif_config_write);
+  install_default (SUB_INTERFACE_NODE);
+   install_element (SUB_INTERFACE_NODE, &interface_desc_cmd);
+   install_element (SUB_INTERFACE_NODE, &no_interface_desc_cmd);
+   install_element (SUB_INTERFACE_NODE, &interface_vlan_cmd);
+   install_element (SUB_INTERFACE_NODE, &no_interface_vlan_cmd);
+   install_element (SUB_INTERFACE_NODE, &multicast_cmd);
+   install_element (SUB_INTERFACE_NODE, &no_multicast_cmd);
+   install_element (SUB_INTERFACE_NODE, &linkdetect_cmd);
+   install_element (SUB_INTERFACE_NODE, &no_linkdetect_cmd);
+   install_element (SUB_INTERFACE_NODE, &shutdown_if_cmd);
+   install_element (SUB_INTERFACE_NODE, &no_shutdown_if_cmd);
+   install_element (SUB_INTERFACE_NODE, &bandwidth_if_cmd);
+   install_element (SUB_INTERFACE_NODE, &no_bandwidth_if_cmd);
+   install_element (SUB_INTERFACE_NODE, &no_bandwidth_if_val_cmd);
+   install_element (SUB_INTERFACE_NODE, &ip_address_cmd);
+   install_element (SUB_INTERFACE_NODE, &no_ip_address_cmd);
+#ifdef HAVE_NETLINK
+   install_element (SUB_INTERFACE_NODE, &ip_address_label_cmd);
+   install_element (SUB_INTERFACE_NODE, &no_ip_address_label_cmd);
+#endif  /* HAVE_NETLINK */
+
+   install_element (VIEW_NODE, &show_ip_interface_cmd);
+   install_element (ENABLE_NODE, &show_ip_interface_cmd);
+#ifdef HAVE_IPV6
+   install_element (VIEW_NODE, &show_ipv6_interface_cmd);
+   install_element (ENABLE_NODE, &show_ipv6_interface_cmd);
+#endif /* HAVE_IPV6 */
 }

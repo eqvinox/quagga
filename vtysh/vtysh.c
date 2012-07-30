@@ -35,7 +35,7 @@
 #include "vtysh/vtysh.h"
 #include "log.h"
 #include "bgpd/bgp_vty.h"
-
+#include "if.h"
 /* Struct VTY. */
 struct vty *vty;
 
@@ -407,7 +407,14 @@ vtysh_execute_func (const char *line, int pager)
 	    else
 	      if (cmd->func)
 		{
-		  (*cmd->func) (cmd, vty, 0, NULL);
+	    	  vline = cmd_make_strvec (line);
+
+	    	  if (vline == NULL)
+	    		  (*cmd->func) (cmd, vty, 0, NULL);
+	    	  else {
+	    		  (*cmd->func) (cmd, vty, vline->active, vline->index);
+	    		  cmd_free_strvec (vline);
+	    	  }
 		  break;
 		}
 	  }
@@ -426,7 +433,18 @@ vtysh_execute_func (const char *line, int pager)
 	  break;
 
 	if (cmd->func)
-	  (*cmd->func) (cmd, vty, 0, NULL);
+	{
+    	  vline = cmd_make_strvec (line);
+
+    	  if (vline == NULL)
+    		  (*cmd->func) (cmd, vty, 0, NULL);
+    	  else {
+    		  (*cmd->func) (cmd, vty, vline->active, vline->index);
+    		  cmd_free_strvec (vline);
+    	  }
+	  break;
+	}
+
       }
     }
   if (pager && vtysh_pager_name && fp && closepager)
@@ -736,6 +754,12 @@ static struct cmd_node interface_node =
 {
   INTERFACE_NODE,
   "%s(config-if)# ",
+};
+
+struct cmd_node sub_interface_node =
+{
+  SUB_INTERFACE_NODE,
+  "%s(config-subif)# ",
 };
 
 static struct cmd_node rmap_node =
@@ -1109,6 +1133,7 @@ vtysh_exit (struct vty *vty)
       vty->node = ENABLE_NODE;
       break;
     case INTERFACE_NODE:
+    case SUB_INTERFACE_NODE:
     case ZEBRA_NODE:
     case BGP_NODE:
     case RIP_NODE:
@@ -1303,6 +1328,14 @@ DEFUNSH (VTYSH_INTERFACE,
 	 "Select an interface to configure\n"
 	 "Interface's name\n")
 {
+	  int i;
+	  if (argc < 2)
+		  return CMD_WARNING;
+	  i = if_is_subif(argv[1]);
+	  if (i){
+		  vty->node = SUB_INTERFACE_NODE;
+	  }
+	  else
   vty->node = INTERFACE_NODE;
   return CMD_SUCCESS;
 }
@@ -1312,7 +1345,7 @@ DEFSH (VTYSH_ZEBRA|VTYSH_RIPD|VTYSH_RIPNGD|VTYSH_OSPFD|VTYSH_OSPF6D,
        vtysh_no_interface_cmd,
        "no interface IFNAME",
        NO_STR
-       "Delete a pseudo interface's configuration\n"
+       "Delete a virtual interface's configuration\n"
        "Interface's name\n")
 
 /* TODO Implement interface description commands in ripngd, ospf6d
@@ -2276,6 +2309,7 @@ vtysh_init_vty (void)
   install_node (&keychain_key_node, NULL);
   install_node (&isis_node, NULL);
   install_node (&vty_node, NULL);
+  install_node (&sub_interface_node, NULL);
 
   vtysh_install_default (VIEW_NODE);
   vtysh_install_default (ENABLE_NODE);
@@ -2283,6 +2317,7 @@ vtysh_init_vty (void)
   vtysh_install_default (BGP_NODE);
   vtysh_install_default (RIP_NODE);
   vtysh_install_default (INTERFACE_NODE);
+  vtysh_install_default (SUB_INTERFACE_NODE);
   vtysh_install_default (RMAP_NODE);
   vtysh_install_default (ZEBRA_NODE);
   vtysh_install_default (BGP_VPNV4_NODE);
@@ -2366,6 +2401,8 @@ vtysh_init_vty (void)
   install_element (INTERFACE_NODE, &vtysh_end_all_cmd);
   install_element (INTERFACE_NODE, &vtysh_exit_interface_cmd);
   install_element (INTERFACE_NODE, &vtysh_quit_interface_cmd);
+  install_element (SUB_INTERFACE_NODE, &vtysh_end_all_cmd);
+  install_element (SUB_INTERFACE_NODE, &vtysh_exit_interface_cmd);
   install_element (CONFIG_NODE, &router_rip_cmd);
 #ifdef HAVE_IPV6
   install_element (CONFIG_NODE, &router_ripng_cmd);

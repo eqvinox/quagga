@@ -8,6 +8,34 @@
 #include "zebra/redistribute.h"
 #include "zebra/connected.h"
 
+
+int if_delete_if(struct interface *ifp)
+{
+	return 0;
+}
+
+int if_set_vlan(struct interface *ifp, int id)
+{
+	return 0;
+}
+
+int if_set_vrf(struct interface *ifp, int id)
+{
+	return 0;
+}
+
+int if_set_mtu(struct interface *ifp, int mtu)
+{
+	return 0;
+}
+
+#if NETLINK_STATS
+int if_update_stats (struct interface *ifp)
+{
+	return 0;
+}
+#endif
+
 int kernel_add_ipv4 (struct prefix *a, struct rib *b) { return 0; }
 #pragma weak kernel_delete_ipv4 = kernel_add_ipv4
 int kernel_add_ipv6 (struct prefix *a, struct rib *b) { return 0; }

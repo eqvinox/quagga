@@ -389,7 +389,8 @@ if_get_flags (struct interface *ifp)
 
   if_flags_update (ifp, (ifreq.ifr_flags & 0x0000ffff));
 }
-
+#ifdef HAVE_NETLINK
+#else
 /* Set interface flags */
 int
 if_set_flags (struct interface *ifp, uint64_t flags)
@@ -435,7 +436,7 @@ if_unset_flags (struct interface *ifp, uint64_t flags)
     }
   return 0;
 }
-
+#endif
 #ifdef HAVE_IPV6
 
 #ifdef LINUX_IPV6

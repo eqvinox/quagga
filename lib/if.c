@@ -324,6 +324,22 @@ if_get_by_name_len(const char *name, size_t namelen)
 	 if_create(name, namelen);
 }
 
+/* Is this of sub-interface syntax ? */
+/* returns position of sub-interface indicator ie . position */
+/* return of 0 indicates that the string is not a sub-intf string */
+int
+if_is_subif (char *name_if)
+{
+  size_t suboff = 0;
+  while (suboff < INTERFACE_NAMSIZ && name_if[suboff] != '.')
+    suboff++;
+  if (name_if[suboff] == '.') {
+    return (suboff);
+  }
+  else
+    return(0);
+}
+
 /* Does interface up ? */
 int
 if_is_up (struct interface *ifp)
@@ -540,6 +556,7 @@ DEFUN (interface,
 {
   struct interface *ifp;
   size_t sl;
+  int i;
 
   if ((sl = strlen(argv[0])) > INTERFACE_NAMSIZ)
     {
@@ -556,6 +573,16 @@ DEFUN (interface,
 #endif /* SUNOS_5 */
 
   vty->index = ifp;
+
+  if(i = if_is_subif(ifp->name)) {
+	  char parent[INTERFACE_NAMSIZ];
+	  struct interface *parp;
+
+	  vty->node = SUB_INTERFACE_NODE;
+	  strncpy (parent,ifp->name,i);
+	  ifp->parent = if_get_by_name_len(parent, i);
+  }
+  else
   vty->node = INTERFACE_NODE;
 
   return CMD_SUCCESS;

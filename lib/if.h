@@ -36,6 +36,7 @@ Boston, MA 02111-1307, USA.  */
 #define INTERFACE_NAMSIZ      20
 #define INTERFACE_HWADDR_MAX  20
 
+#define VLAN_ID_MAX 4095
 #ifdef HAVE_PROC_NET_DEV
 struct if_stats
 {
@@ -83,6 +84,7 @@ struct interface
   /* Interface index (should be IFINDEX_INTERNAL for non-kernel or
      deleted interfaces). */
   unsigned int ifindex;
+  struct interface *parent;
 #define IFINDEX_INTERNAL	0
 
   /* Zebra internal interface status */
@@ -126,13 +128,15 @@ struct interface
   /* Daemon specific interface data pointer. */
   void *info;
 
-  /* Statistics fileds. */
+  /* Statistics fields. */
 #ifdef HAVE_PROC_NET_DEV
   struct if_stats stats;
 #endif /* HAVE_PROC_NET_DEV */  
 #ifdef HAVE_NET_RT_IFLIST
   struct if_data stats;
 #endif /* HAVE_NET_RT_IFLIST */
+  int type;
+  int vlan;
 };
 
 /* Connected address structure. */
@@ -308,5 +312,7 @@ extern struct cmd_element no_interface_cmd;
 extern struct cmd_element interface_pseudo_cmd;
 extern struct cmd_element no_interface_pseudo_cmd;
 extern struct cmd_element show_address_cmd;
+extern struct cmd_element interface_vlan_cmd;
+extern struct cmd_element no_interface_vlan_cmd;
 
 #endif /* _ZEBRA_IF_H */

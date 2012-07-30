@@ -88,6 +88,8 @@ extern struct zebra_privs_t zserv_privs;
 
 extern u_int32_t nl_rcvbufsize;
 
+#define NLMSG_TAIL(nmsg) \
+	((struct rtattr *) (((void *) (nmsg)) + NLMSG_ALIGN((nmsg)->nlmsg_len)))
 /* Note: on netlink systems, there should be a 1-to-1 mapping between interface
    names and ifindex values. */
 static void
@@ -1887,6 +1889,168 @@ kernel_delete_ipv6_old (struct prefix_ipv6 *dest, struct in6_addr *gate,
 }
 #endif /* HAVE_IPV6 */
 
+
+
+void
+kernel_link_get_flags (struct interface *ifp)
+{
+	  uint64_t flags;
+
+	  flags = 0;
+}
+
+#if 0
+void
+kernel_get_link_metric (struct interface *ifp)
+{
+	int metric;
+
+	metric = 0;
+	ifp->metric = metric;
+	if (ifp->metric == 0)
+		ifp->metric = 1;
+}
+
+void
+kernel_set_link_metric (struct interface *ifp, int metric)
+{
+
+
+	ifp->metric = metric;
+	if (ifp->metric == 0)
+		ifp->metric = 1;
+}
+
+#endif
+
+/* get interface MTU */
+void
+kernel_get_link_mtu (struct interface *ifp)
+{
+	unsigned int mtu;
+
+	mtu = 8196;
+	ifp->mtu6 = ifp->mtu = mtu;
+}
+
+
+
+/* set interface MTU */
+int
+kernel_set_link_mtu (struct interface *ifp, int mtu)
+{
+	int bytelen;
+	int err;
+	struct nlsock *netlinkcmd;
+	struct rtattr *linkinfo;
+	struct
+	  {
+	    struct nlmsghdr n;
+	    struct ifinfomsg ifi;
+	    char buf[1024];
+	  } req;
+
+
+	  memset (&req, 0, sizeof req);
+	  bytelen = 2;
+
+	  req.n.nlmsg_len = NLMSG_LENGTH (sizeof (struct ifinfomsg));
+	  req.n.nlmsg_flags = NLM_F_REQUEST;
+	  req.n.nlmsg_type = RTM_NEWLINK;
+	  req.ifi.ifi_family = AF_UNSPEC;
+	  req.ifi.ifi_index = ifp->ifindex;
+
+	  linkinfo = NLMSG_TAIL(&req.n);
+	  addattr_l( &req.n, 1024, IFLA_MTU, &mtu, 4);
+
+	 err = netlink_talk (&req.n, netlinkcmd);
+	 if (err) {
+		 printf ("Setting MTU of interface failed errno:%d, %s",errno,safe_strerror(errno) );
+		 return -1;
+	 }
+	ifp->mtu6 = ifp->mtu = mtu;
+	return 0;
+}
+
+
+
+/* set interface flags */
+int
+kernel_link_set_flags (struct interface *ifp, uint64_t flags)
+{
+	int bytelen;
+	int err, len;
+	struct rtattr *linkinfo;
+	struct
+	  {
+	    struct nlmsghdr n;
+	    struct ifinfomsg ifi;
+	    char buf[1024];
+	  } req;
+
+
+	  memset (&req, 0, sizeof req);
+	  bytelen = 2;
+
+	  req.n.nlmsg_len = NLMSG_LENGTH (sizeof (struct ifinfomsg));
+	  req.n.nlmsg_flags = NLM_F_REQUEST;
+	  req.n.nlmsg_type = RTM_NEWLINK;
+	  req.ifi.ifi_family = AF_UNSPEC;
+	  req.ifi.ifi_index = ifp->ifindex;
+	  req.ifi.ifi_change |= flags;
+	  req.ifi.ifi_flags |= flags;
+
+	  linkinfo = NLMSG_TAIL(&req.n);
+
+	 err = netlink_talk (&req.n, &netlink_cmd);
+	 if (err) {
+		 printf ("Setting Link flag on interface failed errno:%d, %s",errno,safe_strerror(errno) );
+		 return -1;
+	 }
+
+	 ifp->flags |= flags;
+	 return 0;
+}
+
+/* unset interface flags */
+int
+kernel_link_unset_flags (struct interface *ifp, uint64_t flags)
+{
+	int bytelen;
+	int err;
+	struct rtattr *linkinfo;
+	struct
+	  {
+	    struct nlmsghdr n;
+	    struct ifinfomsg ifi;
+	    char buf[1024];
+	  } req;
+
+
+	  memset (&req, 0, sizeof req);
+	  bytelen = 2;
+
+	  req.n.nlmsg_len = NLMSG_LENGTH (sizeof (struct ifinfomsg));
+	  req.n.nlmsg_flags = NLM_F_REQUEST;
+	  req.n.nlmsg_type = RTM_NEWLINK;
+	  req.ifi.ifi_family = AF_UNSPEC;
+	  req.ifi.ifi_index = ifp->ifindex;
+	  req.ifi.ifi_change |= flags;
+	  req.ifi.ifi_flags &= ~flags;
+
+	  linkinfo = NLMSG_TAIL(&req.n);
+
+	 err = netlink_talk (&req.n, &netlink_cmd);
+	 if (err) {
+		 printf ("UnSetting link flag on interface failed errno:%d, %s",errno,safe_strerror(errno) );
+		 return -1;
+	 }
+
+	 ifp->flags &= ~flags;
+	 return 0;
+}
+
+
 /* Interface address modification. */
 static int
 netlink_address (int cmd, int family, struct interface *ifp,
@@ -1949,6 +2113,96 @@ kernel_address_delete_ipv4 (struct interface *ifp, struct connected *ifc)
   return netlink_address (RTM_DELADDR, AF_INET, ifp, ifc);
 }
 
+int
+kernel_delete_if (struct interface *ifp)
+{
+	int bytelen;
+	int err, len;
+
+	struct rtattr *linkinfo;
+	struct
+	  {
+	    struct nlmsghdr n;
+	    struct ifinfomsg ifi;
+	    char buf[1024];
+	  } req;
+    const char type[] = "vlan";
+
+	  if (!ifp)
+		  return -1;
+
+
+	  memset (&req, 0, sizeof req);
+	  bytelen = 2;
+
+	  req.n.nlmsg_len = NLMSG_LENGTH (sizeof (struct ifinfomsg));
+	  req.n.nlmsg_flags = NLM_F_REQUEST;
+	  req.n.nlmsg_type = RTM_DELLINK;
+	  req.ifi.ifi_family = AF_UNSPEC;
+	  req.ifi.ifi_index = ifp->ifindex;
+
+	  len = strlen(ifp->name) + 1;
+
+	addattr_l(&req.n, sizeof(req), IFLA_IFNAME, ifp->name, len);
+
+	 err = netlink_talk (&req.n, &netlink_cmd);
+	 if (err) {
+		 printf ("Delete interface failed errno:%d, %s",errno,safe_strerror(errno) );
+		 return -1;
+	 }
+return 0;
+}
+
+int
+kernel_vlan_set(struct interface *ifp, int id  )
+{
+	int bytelen;
+	int err, len;
+
+	struct rtattr *linkinfo;
+	struct
+	  {
+	    struct nlmsghdr n;
+	    struct ifinfomsg ifi;
+	    char buf[1024];
+	  } req;
+	  char type[] = "vlan";
+
+	  if (!ifp || !ifp->parent)
+		  return -1;
+
+
+	  memset (&req, 0, sizeof req);
+	  bytelen = 2;
+
+	  req.n.nlmsg_len = NLMSG_LENGTH (sizeof (struct ifinfomsg));
+	  req.n.nlmsg_flags = NLM_F_REQUEST|NLM_F_CREATE|NLM_F_EXCL;
+	  req.n.nlmsg_type = RTM_NEWLINK;
+	  req.ifi.ifi_family = AF_UNSPEC;
+	  req.ifi.ifi_index = ifp->ifindex;
+
+	  len = strlen(ifp->name) + 1;
+	  linkinfo = NLMSG_TAIL(&req.n);
+
+	addattr_l(&req.n, sizeof(req), IFLA_LINKINFO, NULL, 0);
+	addattr_l(&req.n, sizeof(req), IFLA_INFO_KIND, type, strlen(type));
+
+	struct rtattr * data = NLMSG_TAIL(&req.n);
+	addattr_l(&req.n, sizeof(req), IFLA_INFO_DATA, NULL, 0);
+	addattr_l( &req.n, 1024, IFLA_VLAN_ID, &id, 2);
+	data->rta_len = (void *)NLMSG_TAIL(&req.n) - (void *)data;
+	linkinfo->rta_len = (void *)NLMSG_TAIL(&req.n) - (void *)linkinfo;
+	addattr_l(&req.n, sizeof(req), IFLA_LINK, &(ifp->parent->ifindex), 4);  /* FIX ME */
+
+	addattr_l(&req.n, sizeof(req), IFLA_IFNAME, ifp->name, len);
+
+	 err = netlink_talk (&req.n, &netlink_cmd);
+	 if (err) {
+		 printf ("Vlan interface failed errno:%d, %s",errno,safe_strerror(errno) );
+		 return -1;
+	 }
+return 0;
+}
 
 extern struct thread_master *master;
 

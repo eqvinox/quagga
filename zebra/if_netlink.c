@@ -23,6 +23,7 @@
 #include <zebra.h>
 
 #include "zebra/zserv.h"
+#include "ioctl.h"
 
 extern int interface_lookup_netlink (void);
 
@@ -32,3 +33,53 @@ interface_list (void)
 {
   interface_lookup_netlink ();  
 }
+
+int if_set_vlan(struct interface *ifp, int id)
+{
+	return kernel_vlan_set (ifp, id);
+}
+
+
+
+
+/* set interface MTU */
+void
+if_set_mtu (struct interface *ifp, unsigned int mtu)
+{
+	mtu = kernel_set_link_mtu(ifp, mtu);
+}
+
+
+/* Set interface flags */
+int
+if_set_flags (struct interface *ifp, uint64_t flags)
+{
+  int ret;
+  struct ifreq ifreq;
+
+  return kernel_link_set_flags(ifp,flags);
+
+}
+/* Unset interface's flag. */
+int
+if_unset_flags (struct interface *ifp, uint64_t flags)
+{
+
+	 return kernel_link_unset_flags(ifp, flags);
+}
+
+/* Unset interface's flag. */
+int
+if_delete_if (struct interface *ifp)
+{
+
+	 return kernel_delete_if(ifp);
+}
+
+#if NETLINK_STATS
+int
+if_update_stats (struct interface *ifp)
+{
+	return kernel_update_link_stats(ifp);
+}
+#endif
